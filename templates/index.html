@@ -28,6 +28,15 @@
       .dropdown-item:hover {
         background-color: #f3f4f6;
       }
+      .score-cell {
+        min-width: 3.5rem;
+        height: 2.75rem;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+      }
+      .metric-value {
+        font-variant-numeric: tabular-nums;
+      }
     </style>
   </head>
   <body class="bg-gray-100 min-h-screen py-12 px-4 sm:px-6 lg:px-8">
@@ -80,6 +89,27 @@
             </button>
           </div>
         </form>
+        <section
+          id="live-sync"
+          class="mt-8 border border-gray-200 rounded-lg p-4"
+        >
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h2 class="text-lg font-medium text-gray-900">Live Matches</h2>
+              <p id="live-status" class="mt-1 text-xs text-gray-500">
+                Checking live sync...
+              </p>
+            </div>
+            <button
+              id="refresh-live"
+              type="button"
+              class="inline-flex items-center justify-center rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              Refresh
+            </button>
+          </div>
+          <div id="live-match-list" class="mt-4 space-y-3"></div>
+        </section>
         <div id="team-loading" class="mt-4 text-center">
           <div
             class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"
@@ -99,6 +129,7 @@
         <div id="result" class="mt-8 hidden">
           <h2 class="text-lg font-medium text-gray-900">Prediction Result:</h2>
           <p id="prediction" class="mt-2 text-sm text-gray-500"></p>
+          <p id="prediction-method" class="mt-1 text-xs text-gray-500"></p>
           <p
             id="predicted-score"
             class="mt-2 text-lg font-bold text-indigo-600"
@@ -107,6 +138,50 @@
             <canvas id="probabilityChart"></canvas>
           </div>
           <div id="probabilityText" class="mt-4 text-sm text-gray-600"></div>
+        </div>
+        <div id="advanced-insights" class="mt-8 hidden">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div class="lg:col-span-2 border border-gray-200 rounded-lg p-4">
+              <div class="flex items-center justify-between gap-3 mb-4">
+                <h2 class="text-lg font-medium text-gray-900">
+                  Advanced Markets
+                </h2>
+                <span
+                  id="expected-goals"
+                  class="text-xs font-medium text-gray-500 bg-gray-100 rounded-full px-3 py-1"
+                ></span>
+              </div>
+              <div
+                id="market-grid"
+                class="grid grid-cols-2 md:grid-cols-4 gap-3"
+              ></div>
+            </div>
+            <div class="border border-gray-200 rounded-lg p-4">
+              <h2 class="text-lg font-medium text-gray-900 mb-4">
+                Model Blend
+              </h2>
+              <div id="model-comparison" class="space-y-3"></div>
+            </div>
+          </div>
+          <div class="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div class="border border-gray-200 rounded-lg p-4">
+              <h2 class="text-lg font-medium text-gray-900 mb-4">
+                Most Likely Scores
+              </h2>
+              <div id="exact-score-list" class="space-y-2"></div>
+            </div>
+            <div class="lg:col-span-2 border border-gray-200 rounded-lg p-4">
+              <div class="flex items-center justify-between gap-3 mb-4">
+                <h2 class="text-lg font-medium text-gray-900">
+                  Exact Score Matrix
+                </h2>
+                <span class="text-xs font-medium text-gray-500">
+                  Home rows, away columns
+                </span>
+              </div>
+              <div id="poisson-score-grid" class="overflow-x-auto"></div>
+            </div>
+          </div>
         </div>
         <div id="h2h-history" class="mt-8 hidden">
           <h3 class="text-lg font-medium text-gray-900">
@@ -227,6 +302,171 @@
     <script>
       let teams = [];
       let probabilityChart;
+      let liveMatchesLoading = false;
+      let liveSyncConfigured = false;
+
+      const liveStatusClasses = {
+        LIVE: "bg-emerald-100 text-emerald-700",
+        IN_PLAY: "bg-emerald-100 text-emerald-700",
+        PAUSED: "bg-amber-100 text-amber-700",
+        HALFTIME: "bg-amber-100 text-amber-700",
+        TIMED: "bg-blue-100 text-blue-700",
+        SCHEDULED: "bg-gray-100 text-gray-700",
+        FINISHED: "bg-slate-100 text-slate-700",
+      };
+
+      function appendText(parent, tag, className, text) {
+        const element = document.createElement(tag);
+        element.className = className;
+        element.textContent = text || "";
+        parent.appendChild(element);
+        return element;
+      }
+
+      function renderLiveSetupMessage(message) {
+        const list = document.getElementById("live-match-list");
+        list.innerHTML = "";
+        const card = document.createElement("div");
+        card.className = "rounded-md bg-amber-50 border border-amber-200 p-3";
+        appendText(
+          card,
+          "p",
+          "text-sm font-medium text-amber-800",
+          "Live sync is not configured."
+        );
+        appendText(
+          card,
+          "p",
+          "mt-1 text-xs text-amber-700",
+          message || "Set FOOTBALL_DATA_API_TOKEN, then restart Flask."
+        );
+        list.appendChild(card);
+      }
+
+      function renderLiveMatches(matches) {
+        const list = document.getElementById("live-match-list");
+        list.innerHTML = "";
+
+        if (!matches || matches.length === 0) {
+          const empty = document.createElement("div");
+          empty.className = "rounded-md bg-gray-50 border border-gray-200 p-3";
+          appendText(
+            empty,
+            "p",
+            "text-sm text-gray-600",
+            "No live matches found right now."
+          );
+          list.appendChild(empty);
+          return;
+        }
+
+        matches.forEach((match) => {
+          const card = document.createElement("div");
+          card.className =
+            "rounded-lg border border-gray-200 bg-gray-50 p-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between";
+
+          const content = document.createElement("div");
+          const header = document.createElement("div");
+          header.className = "flex flex-wrap items-center gap-2";
+
+          const status = document.createElement("span");
+          status.className = `rounded-full px-2 py-1 text-xs font-medium ${
+            liveStatusClasses[match.status] || "bg-gray-100 text-gray-700"
+          }`;
+          status.textContent = match.minute
+            ? `${match.status} ${match.minute}'`
+            : match.status || "UNKNOWN";
+          header.appendChild(status);
+
+          appendText(
+            header,
+            "span",
+            "text-xs font-medium text-gray-500",
+            match.competition || "Competition"
+          );
+          content.appendChild(header);
+
+          const title = document.createElement("p");
+          title.className = "mt-2 text-sm font-semibold text-gray-900";
+          title.textContent = `${match.home_provider} ${match.score || "-"} ${
+            match.away_provider
+          }`;
+          content.appendChild(title);
+
+          const mappedText =
+            match.can_predict && (match.home_team !== match.home_provider || match.away_team !== match.away_provider)
+              ? `Mapped to: ${match.home_team} vs ${match.away_team}`
+              : match.local_date || "";
+          appendText(content, "p", "mt-1 text-xs text-gray-500", mappedText);
+
+          card.appendChild(content);
+
+          const action = document.createElement("button");
+          action.type = "button";
+          action.className =
+            "inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-300";
+          action.textContent = match.can_predict ? "Predict" : "Not in model";
+          action.disabled = !match.can_predict;
+          action.addEventListener("click", () => {
+            document.getElementById("home-team").value = match.home_team;
+            document.getElementById("away-team").value = match.away_team;
+            document.getElementById("prediction-form").requestSubmit();
+          });
+          card.appendChild(action);
+
+          list.appendChild(card);
+        });
+      }
+
+      async function loadLiveMatches(manualRefresh = false) {
+        if (liveMatchesLoading) {
+          return;
+        }
+
+        liveMatchesLoading = true;
+        const refreshButton = document.getElementById("refresh-live");
+        const status = document.getElementById("live-status");
+        refreshButton.disabled = true;
+        status.textContent = manualRefresh
+          ? "Refreshing live matches..."
+          : "Loading live matches...";
+
+        try {
+          const response = await fetch(
+            manualRefresh ? "/live-matches?refresh=1" : "/live-matches"
+          );
+          const data = await response.json();
+
+          if (data.error) {
+            throw new Error(data.error);
+          }
+
+          liveSyncConfigured = Boolean(data.configured);
+          if (!data.configured) {
+            status.textContent =
+              "Live sync disabled until FOOTBALL_DATA_API_TOKEN is configured.";
+            renderLiveSetupMessage(data.message);
+            return;
+          }
+
+          status.textContent = `Synced with ${data.provider}. ${
+            data.matches.length
+          } match${data.matches.length === 1 ? "" : "es"} found.`;
+          renderLiveMatches(data.matches);
+        } catch (error) {
+          console.error("Error fetching live matches:", error);
+          status.textContent = "Live sync failed.";
+          const list = document.getElementById("live-match-list");
+          list.innerHTML = "";
+          const card = document.createElement("div");
+          card.className = "rounded-md bg-red-50 border border-red-200 p-3";
+          appendText(card, "p", "text-sm font-medium text-red-700", error.message);
+          list.appendChild(card);
+        } finally {
+          liveMatchesLoading = false;
+          refreshButton.disabled = false;
+        }
+      }
 
       function populateDropdown(inputId, listId) {
         const input = document.getElementById(inputId);
@@ -255,6 +495,195 @@
           list.classList.add("hidden");
         }
       }
+
+      function formatPercent(value) {
+        return `${Number(value || 0).toFixed(1)}%`;
+      }
+
+      function createProgressBar(value, colorClass) {
+        const wrapper = document.createElement("div");
+        wrapper.className = "h-2 bg-gray-100 rounded-full overflow-hidden";
+        const bar = document.createElement("div");
+        bar.className = `h-full ${colorClass}`;
+        bar.style.width = `${Math.min(Math.max(Number(value || 0), 0), 100)}%`;
+        wrapper.appendChild(bar);
+        return wrapper;
+      }
+
+      function renderMarketCard(label, value, detail, colorClass) {
+        const card = document.createElement("div");
+        card.className = "bg-gray-50 border border-gray-200 rounded-lg p-3";
+
+        const title = document.createElement("p");
+        title.className = "text-xs font-medium text-gray-500";
+        title.textContent = label;
+
+        const number = document.createElement("p");
+        number.className = "metric-value mt-1 text-xl font-semibold text-gray-900";
+        number.textContent = formatPercent(value);
+
+        const sub = document.createElement("p");
+        sub.className = "mt-1 text-xs text-gray-500";
+        sub.textContent = detail;
+
+        card.appendChild(title);
+        card.appendChild(number);
+        card.appendChild(createProgressBar(value, colorClass));
+        card.appendChild(sub);
+        return card;
+      }
+
+      function renderAdvancedMarkets(analysis) {
+        const marketGrid = document.getElementById("market-grid");
+        const markets = analysis.markets;
+        marketGrid.innerHTML = "";
+        [
+          ["BTTS Yes", markets.btts_yes, `No ${formatPercent(markets.btts_no)}`, "bg-blue-600"],
+          ["Over 1.5", markets.over_1_5, `Under ${formatPercent(markets.under_1_5)}`, "bg-emerald-600"],
+          ["Over 2.5", markets.over_2_5, `Under ${formatPercent(markets.under_2_5)}`, "bg-orange-500"],
+          ["Over 3.5", markets.over_3_5, `Under ${formatPercent(markets.under_3_5)}`, "bg-slate-700"],
+        ].forEach(([label, value, detail, colorClass]) => {
+          marketGrid.appendChild(renderMarketCard(label, value, detail, colorClass));
+        });
+
+        document.getElementById(
+          "expected-goals"
+        ).textContent = `xG model ${analysis.expected_goals.home.toFixed(
+          2
+        )} - ${analysis.expected_goals.away.toFixed(2)}`;
+      }
+
+      function renderModelComparison(result) {
+        const comparison = document.getElementById("model-comparison");
+        comparison.innerHTML = "";
+        const mlProbabilities = result.ml_probabilities || result.probabilities;
+        const outcomes = [
+          ["home_win", "Home"],
+          ["draw", "Draw"],
+          ["away_win", "Away"],
+        ];
+
+        outcomes.forEach(([key, label]) => {
+          const row = document.createElement("div");
+          row.className = "border-b border-gray-100 pb-3 last:border-b-0 last:pb-0";
+
+          const header = document.createElement("div");
+          header.className = "flex justify-between text-sm font-medium text-gray-700";
+          header.innerHTML = `<span>${label}</span><span class="metric-value">${formatPercent(
+            result.blended_probabilities[key]
+          )}</span>`;
+
+          const detail = document.createElement("p");
+          detail.className = "mt-1 text-xs text-gray-500";
+          detail.textContent = `ML ${formatPercent(
+            mlProbabilities[key]
+          )} / Poisson ${formatPercent(result.poisson_probabilities[key])}`;
+
+          row.appendChild(header);
+          row.appendChild(createProgressBar(result.blended_probabilities[key], "bg-blue-600"));
+          row.appendChild(detail);
+          comparison.appendChild(row);
+        });
+      }
+
+      function renderExactScores(analysis) {
+        const list = document.getElementById("exact-score-list");
+        list.innerHTML = "";
+
+        analysis.top_exact_scores.forEach((item, index) => {
+          const row = document.createElement("div");
+          row.className =
+            "flex items-center justify-between gap-3 rounded-md bg-gray-50 border border-gray-200 px-3 py-2";
+
+          const score = document.createElement("div");
+          score.className = "flex items-center gap-3";
+
+          const rank = document.createElement("span");
+          rank.className =
+            "w-6 h-6 rounded-full bg-blue-600 text-white text-xs flex items-center justify-center";
+          rank.textContent = String(index + 1);
+
+          const label = document.createElement("span");
+          label.className = "font-semibold text-gray-900 metric-value";
+          label.textContent = item.score;
+
+          const probability = document.createElement("span");
+          probability.className = "text-sm font-medium text-gray-600 metric-value";
+          probability.textContent = formatPercent(item.probability);
+
+          score.appendChild(rank);
+          score.appendChild(label);
+          row.appendChild(score);
+          row.appendChild(probability);
+          list.appendChild(row);
+        });
+      }
+
+      function renderScoreMatrix(analysis) {
+        const grid = document.getElementById("poisson-score-grid");
+        const maxProbability = Math.max(
+          ...analysis.score_matrix.flatMap((row) => row.probabilities)
+        );
+
+        const table = document.createElement("table");
+        table.className = "min-w-full border-collapse text-sm";
+
+        const thead = document.createElement("thead");
+        const headRow = document.createElement("tr");
+        headRow.innerHTML =
+          '<th class="score-cell text-xs text-gray-500 bg-gray-50 border border-gray-200">H/A</th>';
+        analysis.score_goals.forEach((goal) => {
+          const th = document.createElement("th");
+          th.className = "score-cell text-xs text-gray-500 bg-gray-50 border border-gray-200";
+          th.textContent = goal;
+          headRow.appendChild(th);
+        });
+        thead.appendChild(headRow);
+        table.appendChild(thead);
+
+        const tbody = document.createElement("tbody");
+        analysis.score_matrix.forEach((row) => {
+          const tr = document.createElement("tr");
+          const header = document.createElement("th");
+          header.className = "score-cell text-xs text-gray-500 bg-gray-50 border border-gray-200";
+          header.textContent = row.home_goals;
+          tr.appendChild(header);
+
+          row.probabilities.forEach((probability) => {
+            const td = document.createElement("td");
+            const intensity = maxProbability > 0 ? probability / maxProbability : 0;
+            td.className = "score-cell border border-gray-200 text-xs font-medium text-gray-900";
+            td.style.backgroundColor = `rgba(37, 99, 235, ${0.08 + intensity * 0.42})`;
+            td.textContent = formatPercent(probability);
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        grid.innerHTML = "";
+        grid.appendChild(table);
+      }
+
+      function renderAdvancedInsights(result) {
+        if (!result.poisson_analysis) {
+          return;
+        }
+        renderAdvancedMarkets(result.poisson_analysis);
+        renderModelComparison(result);
+        renderExactScores(result.poisson_analysis);
+        renderScoreMatrix(result.poisson_analysis);
+        document.getElementById("advanced-insights").classList.remove("hidden");
+      }
+
+      document
+        .getElementById("refresh-live")
+        .addEventListener("click", () => loadLiveMatches(true));
+      loadLiveMatches();
+      setInterval(() => {
+        if (liveSyncConfigured) {
+          loadLiveMatches();
+        }
+      }, 60000);
 
       // Fetch teams and set up dropdowns
       document.getElementById("team-loading").classList.remove("hidden");
@@ -305,6 +734,7 @@
 
           document.getElementById("loading").classList.remove("hidden");
           document.getElementById("result").classList.add("hidden");
+          document.getElementById("advanced-insights").classList.add("hidden");
           document.getElementById("h2h-history").classList.add("hidden");
           document.getElementById("team-histories").classList.add("hidden");
           document.getElementById("error").classList.add("hidden");
@@ -330,6 +760,10 @@
             document.getElementById(
               "prediction"
             ).textContent = `Predicted outcome: ${result.prediction}`;
+            document.getElementById("prediction-method").textContent =
+              result.prediction_method === "historical_poisson"
+                ? `Primary method: historical Poisson baseline. ML comparison: ${result.model_prediction}.`
+                : `Primary method: ML ensemble.`;
             document.getElementById(
               "predicted-score"
             ).textContent = `Predicted score: ${Math.round(
@@ -403,6 +837,7 @@
               .join("<br>");
 
             document.getElementById("result").classList.remove("hidden");
+            renderAdvancedInsights(result);
 
             // Handle head-to-head history
             if (result.h2h_history && result.h2h_history.length > 0) {

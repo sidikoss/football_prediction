@@ -1,0 +1,9 @@
+flask.err.log
+flask.out.log
+venv/
+__pycache__/
+*.pyc
+data_backups/
+football_prediction_ensemble.joblib
+home_goals_model.joblib
+away_goals_model.joblib

@@ -63,7 +63,7 @@ def create_pipeline(model):
 
 # Define models
 models = {
-    'Logistic Regression': create_pipeline(LogisticRegression(random_state=42, multi_class='ovr')),
+    'Logistic Regression': create_pipeline(LogisticRegression(random_state=42)),
     'SVM': create_pipeline(SVC(random_state=42)),
     'Random Forest': create_pipeline(RandomForestClassifier(random_state=42)),
     'XGBoost': create_pipeline(XGBClassifier(random_state=42))

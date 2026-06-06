@@ -12,42 +12,17 @@ This project aims to predict the outcome and scores of football matches using ma
 
 ## Model Performance
 
-### Accuracy
+Use `MODEL_EVALUATION.md` as the source of truth for current metrics. The
+current evaluation uses leakage-free, time-based validation: rolling team stats,
+form, and head-to-head values are calculated only from matches that happened
+before the match being evaluated.
 
-- **Overall Accuracy**: 73.03%
+Older 70%+ metrics in historical notes came from validation setups that used
+future or same-match information. They are useful as development history, but
+not as production-quality accuracy numbers.
 
-### F1-Scores
-
-- **Home Wins**: 79%
-- **Away Wins**: 75%
-- **Draws**: 59%
-
-### Classification Report
-
-| Outcome          | Precision | Recall | F1-Score | Support |
-| ---------------- | --------- | ------ | -------- | ------- |
-| Away Win         | 74%       | 76%    | 75%      | 1213    |
-| Draw             | 65%       | 54%    | 59%      | 1028    |
-| Home Win         | 76%       | 82%    | 79%      | 1727    |
-| **Macro Avg**    | 72%       | 71%    | 71%      | 3968    |
-| **Weighted Avg** | 73%       | 73%    | 73%      | 3968    |
-
-### Mean Absolute Error (MAE) for Score Predictions
-
-- **Home Goals Prediction MAE**: 0.6316
-- **Away Goals Prediction MAE**: 0.5565
-
-### Confusion Matrix
-
-- **Away Win**:
-  - True: 1213
-  - Predicted correctly: 925
-- **Draw**:
-  - True: 1028
-  - Predicted correctly: 549
-- **Home Win**:
-  - True: 1727
-  - Predicted correctly: 1425
+Current production selection is based on the best honest time-split 1X2
+accuracy between the ML ensemble and the historical Poisson baseline.
 
 ## Model Components
 
@@ -77,6 +52,27 @@ The ensemble model combines multiple machine learning algorithms:
 - Head-to-head statistics
 - Recent form of both teams
 
+## Data Updates and Training
+
+The primary update command rebuilds the full Understat dataset, validates it,
+backs up the existing CSV, writes `football_match_data.csv`, and optionally
+re-trains the honest model:
+
+```powershell
+.\venv\Scripts\python.exe update_data.py --train
+```
+
+Useful options:
+
+- `--dry-run`: fetch and validate without writing files or training
+- `--skip-train`: update the CSV without retraining models
+- `--start-year` / `--end-year`: override the season-start year range
+- `--output`: write to a different CSV path
+
+The update pipeline removes incomplete matches, de-duplicates by match identity,
+and fails before replacing the existing CSV if Understat is unavailable or the
+schema is invalid. Backups are written under `data_backups/`.
+
 ## Flask API
 
 The Flask API provides endpoints for making predictions and fetching team lists:
@@ -95,6 +91,29 @@ The Flask API provides endpoints for making predictions and fetching team lists:
 
 2. Access the homepage at `http://localhost:5000`.
 
+### Live Match Sync
+
+The app can show live matches from Football-Data.org and send a live fixture
+directly into the prediction form.
+
+1. Create a Football-Data.org API token.
+2. Set the token before starting Flask:
+
+   ```powershell
+   $env:FOOTBALL_DATA_API_TOKEN="your_api_token"
+   .\venv\Scripts\python.exe app.py
+   ```
+
+3. Open `http://localhost:5000` and use the **Live Matches** panel.
+
+Optional settings:
+
+- `FOOTBALL_DATA_API_BASE_URL`: defaults to `https://api.football-data.org/v4`
+- `LIVE_MATCH_CACHE_SECONDS`: defaults to `60`
+
+If `FOOTBALL_DATA_API_TOKEN` is not set, the app keeps working in manual
+prediction mode and displays setup instructions in the live panel.
+
 ## HTML Interface
 
 The HTML interface allows users to select teams and view predictions. It includes:
@@ -109,7 +128,7 @@ The HTML interface allows users to select teams and view predictions. It include
 
 1. Clone the repository from GitHub.
 2. Install the required packages listed in `requirements.txt`.
-3. Train the model using `train_enhance.py`.
+3. Update data and train with `update_data.py --train`.
 4. Run the Flask app using `app.py`.
 
 ## Model Storage

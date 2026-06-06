@@ -57,7 +57,8 @@ def engineer_features(df):
     # Create 'result' column
     df['result'] = np.select(
         [df['goal_difference'] > 0, df['goal_difference'] < 0, df['goal_difference'] == 0],
-        ['home_win', 'away_win', 'draw']
+        ['home_win', 'away_win', 'draw'],
+        default='draw'
     )
     
     # Additional features

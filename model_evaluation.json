@@ -1,0 +1,95 @@
+{
+  "generated_at": "2026-05-24T11:08:54",
+  "method": "leakage_free_time_split",
+  "dataset": {
+    "matches_used": 19282,
+    "train_matches": 15425,
+    "test_matches": 3857,
+    "test_start": "2023-04-21",
+    "test_end": "2024-06-02"
+  },
+  "features": {
+    "categorical": [
+      "league"
+    ],
+    "numeric": [
+      "home_matches_played",
+      "away_matches_played",
+      "home_avg_goals_for",
+      "home_avg_goals_against",
+      "away_avg_goals_for",
+      "away_avg_goals_against",
+      "home_avg_xg_for",
+      "home_avg_xg_against",
+      "away_avg_xg_for",
+      "away_avg_xg_against",
+      "home_points_per_match",
+      "away_points_per_match",
+      "home_recent_points",
+      "away_recent_points",
+      "home_recent_goal_diff",
+      "away_recent_goal_diff",
+      "home_recent_xg_diff",
+      "away_recent_xg_diff",
+      "home_home_goals_for",
+      "home_home_goals_against",
+      "away_away_goals_for",
+      "away_away_goals_against",
+      "home_home_xg_for",
+      "home_home_xg_against",
+      "away_away_xg_for",
+      "away_away_xg_against",
+      "team_strength_diff",
+      "team_defense_diff",
+      "xg_attack_diff",
+      "xg_defense_diff",
+      "form_points_diff",
+      "form_goal_diff",
+      "venue_attack_diff",
+      "venue_defense_diff",
+      "poisson_home_expected_goals",
+      "poisson_away_expected_goals",
+      "poisson_home_win_probability",
+      "poisson_draw_probability",
+      "poisson_away_win_probability",
+      "poisson_over_2_5_probability",
+      "poisson_btts_probability",
+      "home_rest_days",
+      "away_rest_days",
+      "h2h_matches",
+      "h2h_home_team_win_rate",
+      "h2h_draw_rate",
+      "h2h_away_team_win_rate",
+      "h2h_home_goals_for",
+      "h2h_away_goals_for",
+      "day_of_week",
+      "month"
+    ]
+  },
+  "result_model": {
+    "accuracy": 0.5136116152450091,
+    "log_loss": 0.9897644579151592,
+    "brier": 0.5900728955669832,
+    "ece": 0.05172143515437606,
+    "classes": [
+      "away_win",
+      "draw",
+      "home_win"
+    ]
+  },
+  "baselines": {
+    "majority_accuracy": 0.4402385273528649,
+    "poisson_accuracy": 0.5312418978480684
+  },
+  "production": {
+    "result_method": "historical_poisson",
+    "reason": "Selected by highest honest time-split 1X2 accuracy."
+  },
+  "score_model": {
+    "home_mae": 0.9618847188441685,
+    "away_mae": 0.8661608029088063,
+    "exact_score_accuracy": 0.11900440757065077,
+    "over_2_5_accuracy": 0.5654653876069484,
+    "btts_accuracy": 0.5584651283380866
+  }
+}

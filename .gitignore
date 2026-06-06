@@ -1,4 +1,6 @@
 # Exclude joblib model files
+__pycache__/
+*.pyc
 football_prediction_ensemble.joblib
 football_prediction_gradientboosting.joblib
 football_prediction_model.joblib
@@ -8,3 +10,4 @@ football_prediction_xgboost.joblib
 label_encoder.joblib
 home_goals_model.joblib
 away_goals_model.joblib
+data_backups/
