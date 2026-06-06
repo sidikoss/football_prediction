@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, render_template
-import joblib
+import json
 import math
 import os
 import pandas as pd
@@ -24,6 +24,7 @@ label_encoder_path = Path('label_encoder.joblib')
 home_goals_path = Path('home_goals_model.joblib')
 away_goals_path = Path('away_goals_model.joblib')
 metadata_path = Path('model_metadata.joblib')
+metadata_json_path = Path('model_evaluation.json')
 
 
 MODEL_LOAD_ERRORS = []
@@ -33,10 +34,18 @@ def load_optional_joblib(path):
     if not path.exists():
         return None
     try:
+        import joblib
         return joblib.load(path)
     except Exception as error:
         MODEL_LOAD_ERRORS.append(f'{path.name}: {error}')
         return None
+
+
+def load_model_metadata():
+    if metadata_json_path.exists():
+        with metadata_json_path.open(encoding='utf-8') as file:
+            return {'metrics': json.load(file)}
+    return load_optional_joblib(metadata_path)
 
 
 use_ensemble = ensemble_path.exists() and home_goals_path.exists() and away_goals_path.exists()
@@ -44,7 +53,7 @@ model = load_optional_joblib(ensemble_path if use_ensemble else base_model_path)
 le = load_optional_joblib(label_encoder_path)
 home_goals_model = load_optional_joblib(home_goals_path) if use_ensemble else None
 away_goals_model = load_optional_joblib(away_goals_path) if use_ensemble else None
-model_metadata = load_optional_joblib(metadata_path)
+model_metadata = load_model_metadata()
 ml_available = model is not None and le is not None
 score_model_available = use_ensemble and home_goals_model is not None and away_goals_model is not None
 

@@ -1,5 +1,6 @@
 -r requirements.txt
 beautifulsoup4
+joblib
 scikit-learn
 xgboost
 scipy
