@@ -575,9 +575,11 @@
 
           const detail = document.createElement("p");
           detail.className = "mt-1 text-xs text-gray-500";
-          detail.textContent = `ML ${formatPercent(
-            mlProbabilities[key]
-          )} / Poisson ${formatPercent(result.poisson_probabilities[key])}`;
+          detail.textContent = result.ml_available
+            ? `ML ${formatPercent(mlProbabilities[key])} / Poisson ${formatPercent(
+                result.poisson_probabilities[key]
+              )}`
+            : `Poisson ${formatPercent(result.poisson_probabilities[key])} / ML unavailable`;
 
           row.appendChild(header);
           row.appendChild(createProgressBar(result.blended_probabilities[key], "bg-blue-600"));
@@ -762,7 +764,9 @@
             ).textContent = `Predicted outcome: ${result.prediction}`;
             document.getElementById("prediction-method").textContent =
               result.prediction_method === "historical_poisson"
-                ? `Primary method: historical Poisson baseline. ML comparison: ${result.model_prediction}.`
+                ? result.ml_available
+                  ? `Primary method: historical Poisson baseline. ML comparison: ${result.model_prediction}.`
+                  : "Primary method: historical Poisson baseline. ML model unavailable in this deployment."
                 : `Primary method: ML ensemble.`;
             document.getElementById(
               "predicted-score"

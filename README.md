@@ -127,9 +127,12 @@ The HTML interface allows users to select teams and view predictions. It include
 ## Installation
 
 1. Clone the repository from GitHub.
-2. Install the required packages listed in `requirements.txt`.
+2. Install the web runtime packages listed in `requirements.txt`.
 3. Update data and train with `update_data.py --train`.
 4. Run the Flask app using `app.py`.
+
+For local training and evaluation, install the additional packages in
+`requirements-dev.txt`.
 
 ## Model Storage
 
